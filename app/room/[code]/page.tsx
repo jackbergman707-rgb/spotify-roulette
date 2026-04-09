@@ -4,6 +4,7 @@ import React, { useMemo, useState, useRef, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useGameState } from '@/hooks/useGameState'
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer'
+import { supabase } from '@/lib/supabase'
 import { GuessForm } from '@/components/game/GuessForm'
 import { RevealAnimation } from '@/components/game/RevealAnimation'
 import { PlayerStatusBar } from '@/components/game/PlayerStatusBar'
@@ -43,20 +44,32 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
     if (
       round?.status === 'revealing' &&
       round.id !== lastRevealedRoundId.current &&
-      fullState.roundTrack
+      fullState.roundTrack &&
+      fullState.room
     ) {
       const owner = fullState.players.find((p) => p.id === round.owner_id)
       if (owner) {
         lastRevealedRoundId.current = round.id
-        setRevealData({
-          track: fullState.roundTrack,
-          owner,
-          guesses: fullState.guesses,
-          players: fullState.players,
-          isFinale: round.is_finale,
-          roundNumber: round.round_number,
-          totalRounds: fullState.room?.total_rounds ?? 0,
-        })
+        const roomId = fullState.room.id
+        const roundTrack = fullState.roundTrack
+        const guesses = fullState.guesses
+        // Fetch fresh players so scores reflect points just awarded
+        supabase
+          .from('players')
+          .select()
+          .eq('room_id', roomId)
+          .then(({ data: freshPlayers }) => {
+            const players = freshPlayers ?? fullState.players
+            setRevealData({
+              track: roundTrack,
+              owner: players.find((p) => p.id === owner.id) ?? owner,
+              guesses,
+              players,
+              isFinale: round.is_finale,
+              roundNumber: round.round_number,
+              totalRounds: fullState.room?.total_rounds ?? 0,
+            })
+          })
       }
     }
   }, [fullState.currentRound?.status, fullState.currentRound?.id])
