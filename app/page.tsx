@@ -68,7 +68,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-6 gap-10">
       <div className="text-center">
-        <h1 className="text-4xl font-black tracking-tight">Spotify Guesser</h1>
+        <h1 className="text-4xl font-black tracking-tight">Spotify Roulette</h1>
         <p className="text-white/40 mt-2 text-sm">Whose music is this anyway?</p>
       </div>
 
