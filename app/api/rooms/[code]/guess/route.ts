@@ -10,8 +10,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase'
-import { calculatePoints, allPlayersLocked } from '@/lib/game-engine'
-import { advanceToNextRound } from '@/lib/advance-round'
+import { allPlayersLocked } from '@/lib/game-engine'
+import revealRound from './reveal'
 
 export async function POST(
   req: NextRequest,
@@ -106,53 +106,4 @@ export async function POST(
   }
 
   return NextResponse.json({ ok: true })
-}
-
-async function revealRound(
-  db: ReturnType<typeof createAdminClient>,
-  roomId: string,
-  round: { id: string; round_number: number; track_id: string; owner_id: string; is_finale: boolean },
-) {
-  // Mark round as revealing
-  await db
-    .from('rounds')
-    .update({ status: 'revealing', revealed_at: new Date().toISOString() })
-    .eq('id', round.id)
-
-  if (!round.is_finale) {
-    // Award points for all guesses
-    const { data: guesses } = await db
-      .from('guesses')
-      .select()
-      .eq('round_id', round.id)
-
-    if (guesses) {
-      await Promise.all(
-        guesses.map(async (guess) => {
-          const { total } = calculatePoints(guess, {
-            owner_id: round.owner_id,
-            track_id: round.track_id,
-            id: round.id,
-          } as Parameters<typeof calculatePoints>[1])
-          if (total > 0) {
-            const { data: p } = await db.from('players').select('score').eq('id', guess.player_id).single()
-            await db.from('players').update({ score: (p?.score ?? 0) + total }).eq('id', guess.player_id)
-          }
-        }),
-      )
-    }
-  }
-
-  // After a delay (handled client-side), host can advance.
-  // Mark round done
-  await db.from('rounds').update({ status: 'done' }).eq('id', round.id)
-
-  const { data: room } = await db.from('rooms').select().eq('id', roomId).single()
-  if (!room) return
-
-  if (round.round_number >= room.total_rounds) {
-    await db.from('rooms').update({ status: 'finished' }).eq('id', roomId)
-  } else {
-    await advanceToNextRound(db, roomId)
-  }
 }
