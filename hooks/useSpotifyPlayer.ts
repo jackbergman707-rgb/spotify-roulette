@@ -86,9 +86,8 @@ export function useSpotifyPlayer({
   // Load SDK script once
   useEffect(() => {
     if (!accessToken) return
-    if (document.getElementById('spotify-sdk')) return
 
-    window.onSpotifyWebPlaybackSDKReady = () => {
+    const setup = () => {
       const player = new window.Spotify.Player({
         name: 'Spotify Roulette',
         getOAuthToken: (cb) => cb(accessToken),
@@ -130,11 +129,18 @@ export function useSpotifyPlayer({
       playerRef.current = player
     }
 
-    const script = document.createElement('script')
-    script.id = 'spotify-sdk'
-    script.src = 'https://sdk.scdn.co/spotify-player.js'
-    script.async = true
-    document.body.appendChild(script)
+    if (window.Spotify) {
+      setup()
+    } else if (!document.getElementById('spotify-sdk')) {
+      window.onSpotifyWebPlaybackSDKReady = setup
+      const script = document.createElement('script')
+      script.id = 'spotify-sdk'
+      script.src = 'https://sdk.scdn.co/spotify-player.js'
+      script.async = true
+      document.body.appendChild(script)
+    } else {
+      window.onSpotifyWebPlaybackSDKReady = setup
+    }
 
     return () => {
       playerRef.current?.disconnect()
