@@ -33,9 +33,76 @@ interface UseSpotifyPlayerOptions {
   replaySignal: number
 }
 
+interface SpotifyDevice {
+  id: string
+  is_active: boolean
+  type: string
+  name: string
+}
+
 function isMobile(): boolean {
   if (typeof navigator === 'undefined') return false
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+}
+
+/**
+ * Find a smartphone device from Spotify and transfer playback to it.
+ * Returns the device ID or null if no phone found.
+ */
+async function acquirePhoneDevice(accessToken: string): Promise<string | null> {
+  const res = await fetch('https://api.spotify.com/v1/me/player/devices', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) return null
+
+  const data = await res.json()
+  const devices = data.devices as SpotifyDevice[]
+  const phone = devices.find((d) => d.type === 'Smartphone')
+  if (!phone) return null
+
+  // Transfer playback to the phone to wake it up
+  await fetch('https://api.spotify.com/v1/me/player', {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ device_ids: [phone.id], play: false }),
+  })
+
+  return phone.id
+}
+
+/**
+ * Attempt to play a track on a device. Returns true on success.
+ */
+async function tryPlay(
+  deviceId: string,
+  trackId: string,
+  positionMs: number,
+  accessToken: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(
+      `https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uris: [`spotify:track:${trackId}`],
+          position_ms: positionMs,
+        }),
+      },
+    )
+    if (res.ok || res.status === 204) return { ok: true }
+    const err = await res.json().catch(() => ({}))
+    return { ok: false, error: err?.error?.message ?? `Error ${res.status}` }
+  } catch {
+    return { ok: false, error: 'Network error' }
+  }
 }
 
 export function useSpotifyPlayer({
@@ -54,52 +121,77 @@ export function useSpotifyPlayer({
   const [error, setError] = useState<string | null>(null)
 
   const play = useCallback(async () => {
-    if (!accessToken || !spotifyTrackId || !deviceIdRef.current) return
+    if (!accessToken || !spotifyTrackId) return
 
     if (stopTimerRef.current) clearTimeout(stopTimerRef.current)
 
-    try {
-      const res = await fetch(
-        `https://api.spotify.com/v1/me/player/play?device_id=${deviceIdRef.current}`,
-        {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            uris: [`spotify:track:${spotifyTrackId}`],
-            position_ms: startOffsetMs,
-          }),
-        },
-      )
-      if (!res.ok && res.status !== 204) {
-        const err = await res.json().catch(() => ({}))
-        setError(err?.error?.message ?? 'Playback failed')
-        return
-      }
-      setIsPlaying(true)
+    if (mobileRef.current) {
+      // Mobile: re-acquire the phone device every time we play
+      // This handles the case where the device went idle/asleep
       setError(null)
 
-      // Auto-stop after clip duration
-      stopTimerRef.current = setTimeout(async () => {
-        if (mobileRef.current && deviceIdRef.current) {
-          // Mobile: pause via Connect API
-          await fetch(
-            `https://api.spotify.com/v1/me/player/pause?device_id=${deviceIdRef.current}`,
-            {
-              method: 'PUT',
-              headers: { Authorization: `Bearer ${accessToken}` },
-            },
-          ).catch(() => {})
-        } else {
-          // Desktop: pause via SDK
-          await playerRef.current?.pause()
+      let deviceId = deviceIdRef.current
+
+      // First attempt with cached device
+      if (deviceId) {
+        const result = await tryPlay(deviceId, spotifyTrackId, startOffsetMs, accessToken)
+        if (result.ok) {
+          setIsPlaying(true)
+          stopTimerRef.current = setTimeout(async () => {
+            await fetch(
+              `https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`,
+              { method: 'PUT', headers: { Authorization: `Bearer ${accessToken}` } },
+            ).catch(() => {})
+            setIsPlaying(false)
+          }, clipDurationMs)
+          return
         }
+      }
+
+      // Cached device failed or missing — re-discover and retry
+      deviceId = await acquirePhoneDevice(accessToken)
+      if (!deviceId) {
+        setError('Open Spotify on your phone and try again')
+        return
+      }
+      deviceIdRef.current = deviceId
+
+      // Small delay to let the transfer settle
+      await new Promise((r) => setTimeout(r, 500))
+
+      const result = await tryPlay(deviceId, spotifyTrackId, startOffsetMs, accessToken)
+      if (!result.ok) {
+        setError(result.error ?? 'Playback failed — try again')
+        return
+      }
+
+      setIsPlaying(true)
+      stopTimerRef.current = setTimeout(async () => {
+        await fetch(
+          `https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`,
+          { method: 'PUT', headers: { Authorization: `Bearer ${accessToken}` } },
+        ).catch(() => {})
         setIsPlaying(false)
       }, clipDurationMs)
-    } catch {
-      setError('Playback error')
+    } else {
+      // Desktop: play via SDK device (existing flow)
+      if (!deviceIdRef.current) return
+
+      try {
+        const result = await tryPlay(deviceIdRef.current, spotifyTrackId, startOffsetMs, accessToken)
+        if (!result.ok) {
+          setError(result.error ?? 'Playback failed')
+          return
+        }
+        setIsPlaying(true)
+        setError(null)
+        stopTimerRef.current = setTimeout(async () => {
+          await playerRef.current?.pause()
+          setIsPlaying(false)
+        }, clipDurationMs)
+      } catch {
+        setError('Playback error')
+      }
     }
   }, [accessToken, spotifyTrackId, startOffsetMs, clipDurationMs])
 
@@ -111,56 +203,41 @@ export function useSpotifyPlayer({
     mobileRef.current = mobile
 
     if (mobile) {
-      // Mobile: find an active Spotify device
+      // Mobile: find phone device on mount, but don't block on it
+      // The play() function will re-acquire if needed
       let cancelled = false
-      let pollInterval: ReturnType<typeof setInterval> | null = null
 
-      async function findDevice() {
-        try {
-          const res = await fetch('https://api.spotify.com/v1/me/player/devices', {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          })
-          if (!res.ok) return
-          const data = await res.json()
-          const devices = data.devices as { id: string; is_active: boolean; type: string; name: string }[]
-
-          // On mobile: ONLY use a smartphone device so audio plays from the phone
-          const phone = devices.find((d) => d.type === 'Smartphone')
-
-          if (phone && !cancelled) {
-            deviceIdRef.current = phone.id
-
-            // Transfer playback to the phone so it becomes the active device
-            await fetch('https://api.spotify.com/v1/me/player', {
-              method: 'PUT',
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ device_ids: [phone.id], play: false }),
-            })
-
-            setIsReady(true)
-            setError(null)
-            if (pollInterval) clearInterval(pollInterval)
-          } else if (!cancelled) {
-            setError('Open Spotify on your phone first')
-            setIsReady(false)
-          }
-        } catch {
-          if (!cancelled) setError('Could not reach Spotify')
+      async function initialFind() {
+        const deviceId = await acquirePhoneDevice(accessToken!)
+        if (cancelled) return
+        if (deviceId) {
+          deviceIdRef.current = deviceId
+          setIsReady(true)
+          setError(null)
+        } else {
+          // Still mark as "ready" so the button is tappable —
+          // play() will show the error if no device is found at play time
+          setIsReady(true)
+          setError('Open Spotify on your phone')
         }
       }
 
-      // Poll for devices every 3 seconds until one is found
-      findDevice()
-      pollInterval = setInterval(() => {
-        if (!deviceIdRef.current) findDevice()
-      }, 3000)
+      initialFind()
+
+      // Keep polling in background to update status and keep device alive
+      const pollInterval = setInterval(async () => {
+        if (cancelled) return
+        const deviceId = await acquirePhoneDevice(accessToken!)
+        if (cancelled) return
+        if (deviceId) {
+          deviceIdRef.current = deviceId
+          setError(null)
+        }
+      }, 10_000)
 
       return () => {
         cancelled = true
-        if (pollInterval) clearInterval(pollInterval)
+        clearInterval(pollInterval)
       }
     } else {
       // Desktop: Web Playback SDK
