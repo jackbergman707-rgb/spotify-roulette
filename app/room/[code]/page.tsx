@@ -133,6 +133,19 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
               <p className="text-gray-500 font-bold uppercase tracking-widest text-xs mt-2">Final Standings</p>
             </div>
             <Leaderboard players={fullState.players} highlightId={myPlayerId ?? undefined} />
+            {/* Feedback */}
+            <div className="w-full max-w-sm bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-5 text-center">
+              <p className="text-white/70 font-bold text-sm mb-3">How was that? Help us improve!</p>
+              <a
+                href="https://docs.google.com/forms/d/e/1FAIpQLSedzfWDfCoA2lNRPDewjqu9s2Yc4a88mZ132jEsp1wfMuSZoA/viewform"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-spotify text-black font-black text-sm px-5 py-3 rounded-full active:scale-95 transition-transform"
+              >
+                Give Feedback
+              </a>
+            </div>
+
             <div className="w-full max-w-sm space-y-4 mt-4">
               <button
                 onClick={() => window.location.href = '/'}
