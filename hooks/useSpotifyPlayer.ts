@@ -163,13 +163,14 @@ export function useSpotifyPlayer({
       }
 
       setIsPlaying(true)
+      // Add buffer for Spotify startup latency on mobile
       stopTimerRef.current = setTimeout(async () => {
         await fetch(
           `https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`,
           { method: 'PUT', headers: { Authorization: `Bearer ${accessToken}` } },
         ).catch(() => {})
         setIsPlaying(false)
-      }, clipDurationMs)
+      }, clipDurationMs + 2000)
     } else {
       // Desktop: play via SDK device (existing flow)
       if (!deviceIdRef.current) return
@@ -182,10 +183,11 @@ export function useSpotifyPlayer({
         }
         setIsPlaying(true)
         setError(null)
+        // Add buffer for Spotify startup latency
         stopTimerRef.current = setTimeout(async () => {
           await playerRef.current?.pause()
           setIsPlaying(false)
-        }, clipDurationMs)
+        }, clipDurationMs + 1000)
       } catch {
         setError('Playback error')
       }
