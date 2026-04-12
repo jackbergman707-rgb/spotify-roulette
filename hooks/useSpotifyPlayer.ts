@@ -45,37 +45,33 @@ function isMobile(): boolean {
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-/**
- * Find a smartphone device from Spotify and transfer playback to it.
- * Returns the device ID or null if no phone found.
- */
 async function acquirePhoneDevice(accessToken: string): Promise<string | null> {
-  const res = await fetch('https://api.spotify.com/v1/me/player/devices', {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!res.ok) return null
+  try {
+    const res = await fetch('https://api.spotify.com/v1/me/player/devices', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) return null
 
-  const data = await res.json()
-  const devices = data.devices as SpotifyDevice[]
-  const phone = devices.find((d) => d.type === 'Smartphone')
-  if (!phone) return null
+    const data = await res.json()
+    const devices = data.devices as SpotifyDevice[]
+    const phone = devices.find((d) => d.type === 'Smartphone')
+    if (!phone) return null
 
-  // Transfer playback to the phone to wake it up
-  await fetch('https://api.spotify.com/v1/me/player', {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ device_ids: [phone.id], play: false }),
-  })
+    await fetch('https://api.spotify.com/v1/me/player', {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ device_ids: [phone.id], play: false }),
+    })
 
-  return phone.id
+    return phone.id
+  } catch {
+    return null
+  }
 }
 
-/**
- * Attempt to play a track on a device. Returns true on success.
- */
 async function tryPlay(
   deviceId: string,
   trackId: string,
@@ -105,6 +101,34 @@ async function tryPlay(
   }
 }
 
+/**
+ * Poll Spotify's player state until playback is confirmed active.
+ * Returns the actual progress_ms when playback started, or null on timeout.
+ */
+async function waitForPlaybackStarted(
+  accessToken: string,
+  timeoutMs = 5000,
+): Promise<number | null> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch('https://api.spotify.com/v1/me/player', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      if (res.ok) {
+        const state = await res.json()
+        if (state.is_playing && state.progress_ms > 0) {
+          return state.progress_ms
+        }
+      }
+    } catch {
+      // ignore polling errors
+    }
+    await new Promise((r) => setTimeout(r, 400))
+  }
+  return null
+}
+
 export function useSpotifyPlayer({
   accessToken,
   spotifyTrackId,
@@ -115,6 +139,7 @@ export function useSpotifyPlayer({
   const playerRef = useRef<SpotifyPlayer | null>(null)
   const deviceIdRef = useRef<string | null>(null)
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const mobileRef = useRef(false)
   const [isReady, setIsReady] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -122,24 +147,27 @@ export function useSpotifyPlayer({
   const [needsSpotifyOpen, setNeedsSpotifyOpen] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
 
+  function clearTimers() {
+    if (stopTimerRef.current) { clearTimeout(stopTimerRef.current); stopTimerRef.current = null }
+    if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null }
+  }
+
   const play = useCallback(async () => {
     if (!accessToken || !spotifyTrackId) return
 
-    if (stopTimerRef.current) clearTimeout(stopTimerRef.current)
+    clearTimers()
 
     if (mobileRef.current) {
       setError(null)
 
-      // Always re-acquire device to handle idle/sleep between rounds
+      // Re-acquire device each time to handle idle/sleep
       let deviceId = await acquirePhoneDevice(accessToken)
 
       if (!deviceId && deviceIdRef.current) {
-        // Re-acquire failed but we had a cached one — try cached as fallback
         deviceId = deviceIdRef.current
       }
 
       if (!deviceId) {
-        // Only show connection card if we've never had a device
         setNeedsSpotifyOpen(true)
         return
       }
@@ -151,28 +179,48 @@ export function useSpotifyPlayer({
       let result = await tryPlay(deviceId, spotifyTrackId, startOffsetMs, accessToken)
 
       if (!result.ok) {
-        // Wait and retry once (device may need a moment after transfer)
         await new Promise((r) => setTimeout(r, 800))
         result = await tryPlay(deviceId, spotifyTrackId, startOffsetMs, accessToken)
       }
 
       if (!result.ok) {
-        // Show error with reconnect button, but don't show the full connection card
         setError('Tap to retry — make sure Spotify is open')
         return
       }
 
       setIsPlaying(true)
-      // Add buffer for Spotify startup latency on mobile
+
+      // Wait until Spotify confirms audio is actually playing
+      const confirmedProgress = await waitForPlaybackStarted(accessToken)
+
+      if (confirmedProgress === null) {
+        // Playback didn't start — but don't give up, still set a timer
+        // It may have started but the poll missed it
+        stopTimerRef.current = setTimeout(async () => {
+          await fetch(
+            `https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`,
+            { method: 'PUT', headers: { Authorization: `Bearer ${accessToken}` } },
+          ).catch(() => {})
+          setIsPlaying(false)
+        }, clipDurationMs + 2000)
+        return
+      }
+
+      // Audio confirmed playing — schedule pause based on actual progress
+      // Calculate remaining time: we want clipDurationMs of audio from startOffsetMs
+      const targetStopMs = startOffsetMs + clipDurationMs
+      const remainingMs = Math.max(targetStopMs - confirmedProgress, 1000)
+
       stopTimerRef.current = setTimeout(async () => {
         await fetch(
           `https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`,
           { method: 'PUT', headers: { Authorization: `Bearer ${accessToken}` } },
         ).catch(() => {})
         setIsPlaying(false)
-      }, clipDurationMs + 2000)
+      }, remainingMs)
+
     } else {
-      // Desktop: play via SDK device (existing flow)
+      // Desktop: Web Playback SDK
       if (!deviceIdRef.current) return
 
       try {
@@ -183,18 +231,20 @@ export function useSpotifyPlayer({
         }
         setIsPlaying(true)
         setError(null)
-        // Add buffer for Spotify startup latency
+
+        // Desktop SDK is more reliable — use player state events
+        // But still add a small buffer for safety
         stopTimerRef.current = setTimeout(async () => {
           await playerRef.current?.pause()
           setIsPlaying(false)
-        }, clipDurationMs + 1000)
+        }, clipDurationMs + 500)
       } catch {
         setError('Playback error')
       }
     }
   }, [accessToken, spotifyTrackId, startOffsetMs, clipDurationMs])
 
-  // Setup: desktop SDK or mobile Connect
+  // Setup
   useEffect(() => {
     if (!accessToken) return
 
@@ -202,8 +252,6 @@ export function useSpotifyPlayer({
     mobileRef.current = mobile
 
     if (mobile) {
-      // Mobile: find phone device on mount, but don't block on it
-      // The play() function will re-acquire if needed
       let cancelled = false
 
       async function initialFind() {
@@ -222,7 +270,6 @@ export function useSpotifyPlayer({
 
       initialFind()
 
-      // Keep polling in background to update status and keep device alive
       const pollInterval = setInterval(async () => {
         if (cancelled) return
         const deviceId = await acquirePhoneDevice(accessToken!)
@@ -239,7 +286,6 @@ export function useSpotifyPlayer({
         clearInterval(pollInterval)
       }
     } else {
-      // Desktop: Web Playback SDK
       const setup = () => {
         const player = new window.Spotify.Player({
           name: 'Spotify Roulette',
@@ -262,7 +308,6 @@ export function useSpotifyPlayer({
         })
 
         player.addListener('not_ready', () => setIsReady(false))
-
         player.addListener('initialization_error', (data) => {
           setError(`Init error: ${(data as { message: string }).message}`)
         })
