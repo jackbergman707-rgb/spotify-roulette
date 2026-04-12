@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import QRCodeLib from 'qrcode'
 import type { Room, Player } from '@/types'
 
 interface Playlist {
@@ -29,6 +30,7 @@ export default function LobbyPage({ params }: { params: Promise<{ code: string }
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const [codeCopied, setCodeCopied] = useState(false)
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
   const isHost = room?.host_id === session?.spotifyId
   const myPlayer = players.find((p) => p.spotify_id === session?.spotifyId)
@@ -50,6 +52,15 @@ export default function LobbyPage({ params }: { params: Promise<{ code: string }
   }, [code, router])
 
   useEffect(() => { loadData() }, [loadData])
+
+  useEffect(() => {
+    const joinUrl = `${window.location.origin}/room/${code}/lobby`
+    QRCodeLib.toDataURL(joinUrl, {
+      width: 160,
+      margin: 2,
+      color: { dark: '#1DB954', light: '#121212' },
+    }).then(setQrDataUrl)
+  }, [code])
 
   useEffect(() => {
     if (!session?.accessToken) return
@@ -138,6 +149,14 @@ export default function LobbyPage({ params }: { params: Promise<{ code: string }
 
       {/* Main scrollable content */}
       <div className="flex-1 overflow-y-auto px-6 space-y-8 pb-32">
+        {/* QR Code */}
+        {qrDataUrl && (
+          <div className="flex flex-col items-center gap-3">
+            <img src={qrDataUrl} alt="QR code to join" className="w-40 h-40 rounded-2xl" />
+            <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest">Scan to join</p>
+          </div>
+        )}
+
         {/* Players */}
         <div className="space-y-4">
           <h3 className="text-gray-600 text-[10px] font-black uppercase tracking-widest ml-2">Players</h3>
