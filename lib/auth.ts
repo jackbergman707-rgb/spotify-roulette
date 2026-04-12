@@ -18,7 +18,7 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.SPOTIFY_CLIENT_ID!,
       clientSecret: process.env.SPOTIFY_CLIENT_SECRET!,
       authorization: {
-        params: { scope: SPOTIFY_SCOPES, show_dialog: true },
+        params: { scope: SPOTIFY_SCOPES, show_dialog: false },
       },
     }),
   ],
