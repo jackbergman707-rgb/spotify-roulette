@@ -32,5 +32,5 @@ export async function ingestPlayerTracks(
     }),
   )
 
-  await db.from('tracks').upsert(rows, { onConflict: 'room_id,spotify_track_id' })
+  await db.from('sr_tracks').upsert(rows, { onConflict: 'room_id,spotify_track_id' })
 }

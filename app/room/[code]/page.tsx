@@ -55,7 +55,7 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
         const guesses = fullState.guesses
         // Fetch fresh players so scores reflect points just awarded
         supabase
-          .from('players')
+          .from('sr_players')
           .select()
           .eq('room_id', roomId)
           .then(({ data: freshPlayers }) => {

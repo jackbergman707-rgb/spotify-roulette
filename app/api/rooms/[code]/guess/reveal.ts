@@ -20,7 +20,7 @@ export default async function revealRound(
   // Award points first
   if (!round.is_finale) {
     const { data: guesses } = await db
-      .from('guesses')
+      .from('sr_guesses')
       .select()
       .eq('round_id', round.id)
 
@@ -47,7 +47,7 @@ export default async function revealRound(
 
   // Set to 'revealing' — host must click "Next round" to advance
   await db
-    .from('rounds')
+    .from('sr_rounds')
     .update({ status: 'revealing', revealed_at: new Date().toISOString() })
     .eq('id', round.id)
 }

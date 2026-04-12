@@ -20,24 +20,25 @@ export async function POST(req: NextRequest) {
   let code = generateRoomCode()
   let attempts = 0
   while (attempts < 10) {
-    const { data } = await db.from('rooms').select('id').eq('code', code).single()
+    const { data } = await db.from('sr_rooms').select('id').eq('code', code).single()
     if (!data) break
     code = generateRoomCode()
     attempts++
   }
 
   const { data: room, error: roomErr } = await db
-    .from('rooms')
+    .from('sr_rooms')
     .insert({ code, host_id: session.spotifyId, total_rounds: totalRounds })
     .select()
     .single()
 
   if (roomErr || !room) {
-    return NextResponse.json({ error: 'Failed to create room' }, { status: 500 })
+    console.error('Room creation failed:', roomErr)
+    return NextResponse.json({ error: 'Failed to create room', detail: roomErr?.message }, { status: 500 })
   }
 
   const { data: player, error: playerErr } = await db
-    .from('players')
+    .from('sr_players')
     .insert({
       room_id: room.id,
       spotify_id: session.spotifyId,
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (playerErr || !player) {
-    await db.from('rooms').delete().eq('id', room.id)
+    await db.from('sr_rooms').delete().eq('id', room.id)
     return NextResponse.json({ error: 'Failed to create player' }, { status: 500 })
   }
 

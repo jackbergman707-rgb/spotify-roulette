@@ -20,7 +20,7 @@ export async function POST(
 
   const db = createAdminClient()
   const { data: room } = await db
-    .from('rooms')
+    .from('sr_rooms')
     .select()
     .eq('code', (await params).code)
     .single()
@@ -35,7 +35,7 @@ export async function POST(
 
   if (action === 'replay') {
     // Log event — clients subscribed to room_events will trigger replay
-    await db.from('room_events').insert({
+    await db.from('sr_room_events').insert({
       room_id: room.id,
       type: 'replay',
       payload: { round: room.current_round },
@@ -49,7 +49,7 @@ export async function POST(
     }
 
     const { data: round } = await db
-      .from('rounds')
+      .from('sr_rounds')
       .select()
       .eq('room_id', room.id)
       .eq('round_number', room.current_round)
@@ -61,14 +61,14 @@ export async function POST(
 
     // Insert a force-locked guess with nulls (0 points)
     const { data: existing } = await db
-      .from('guesses')
+      .from('sr_guesses')
       .select('id')
       .eq('round_id', round.id)
       .eq('player_id', playerId)
       .single()
 
     if (!existing) {
-      await db.from('guesses').insert({
+      await db.from('sr_guesses').insert({
         round_id: round.id,
         player_id: playerId,
         guessed_owner_id: null,
@@ -79,11 +79,11 @@ export async function POST(
 
     // Check if all locked now
     const { data: players } = await db
-      .from('players')
+      .from('sr_players')
       .select()
       .eq('room_id', room.id)
     const { data: guesses } = await db
-      .from('guesses')
+      .from('sr_guesses')
       .select('player_id')
       .eq('round_id', round.id)
 

@@ -35,7 +35,7 @@ export default function LobbyPage({ params }: { params: Promise<{ code: string }
   const allPlayersReady = players.length > 0 && players.every((p) => p.shield_track_id !== null)
 
   const loadData = useCallback(async () => {
-    const { data: r } = await supabase.from('rooms').select().eq('code', code).single()
+    const { data: r } = await supabase.from('sr_rooms').select().eq('code', code).single()
     if (!r) {
       router.push('/')
       return
@@ -45,7 +45,7 @@ export default function LobbyPage({ params }: { params: Promise<{ code: string }
       return
     }
     setRoom(r)
-    const { data: p } = await supabase.from('players').select().eq('room_id', r.id)
+    const { data: p } = await supabase.from('sr_players').select().eq('room_id', r.id)
     setPlayers(p ?? [])
   }, [code, router])
 
@@ -75,8 +75,8 @@ export default function LobbyPage({ params }: { params: Promise<{ code: string }
     if (!room) return
     const channel = supabase
       .channel(`lobby:${room.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${room.id}` }, loadData)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${room.id}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sr_players', filter: `room_id=eq.${room.id}` }, loadData)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sr_rooms', filter: `id=eq.${room.id}` }, (payload) => {
         setRoom(payload.new as Room)
         if ((payload.new as Room).status === 'playing') router.push(`/room/${code}`)
       })

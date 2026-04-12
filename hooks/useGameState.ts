@@ -32,7 +32,7 @@ export function useGameState(roomCode: string, mySpotifyId: string | null) {
 
   const loadRoom = useCallback(async (attempt = 0) => {
     const { data: room } = await supabase
-      .from('rooms')
+      .from('sr_rooms')
       .select()
       .eq('code', roomCode)
       .single()
@@ -46,9 +46,9 @@ export function useGameState(roomCode: string, mySpotifyId: string | null) {
     }
 
     const [{ data: players }, { data: rounds }] = await Promise.all([
-      supabase.from('players').select().eq('room_id', room.id),
+      supabase.from('sr_players').select().eq('room_id', room.id),
       supabase
-        .from('rounds')
+        .from('sr_rounds')
         .select()
         .eq('room_id', room.id)
         .eq('round_number', room.current_round)
@@ -63,8 +63,8 @@ export function useGameState(roomCode: string, mySpotifyId: string | null) {
     if (round) {
       const trackIds = [round.track_id, ...(round.decoy_ids ?? [])]
       const [{ data: tracks }, { data: g }] = await Promise.all([
-        supabase.from('tracks').select().in('id', trackIds),
-        supabase.from('guesses').select().eq('round_id', round.id),
+        supabase.from('sr_tracks').select().in('id', trackIds),
+        supabase.from('sr_guesses').select().eq('round_id', round.id),
       ])
       roundTrack = tracks?.find((t) => t.id === round.track_id) ?? null
       roundDecoys = (tracks ?? []).filter((t) => round.decoy_ids?.includes(t.id))
@@ -104,7 +104,7 @@ export function useGameState(roomCode: string, mySpotifyId: string | null) {
       // Room status changes
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
+        { event: 'UPDATE', schema: 'public', table: 'sr_rooms', filter: `id=eq.${roomId}` },
         (payload) => {
           setState((prev) => ({ ...prev, room: payload.new as Room }))
           // New round started — reload full state
@@ -116,10 +116,10 @@ export function useGameState(roomCode: string, mySpotifyId: string | null) {
       // Player joins / updates
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` },
+        { event: '*', schema: 'public', table: 'sr_players', filter: `room_id=eq.${roomId}` },
         () => {
           supabase
-            .from('players')
+            .from('sr_players')
             .select()
             .eq('room_id', roomId)
             .then(({ data }) => {
@@ -130,7 +130,7 @@ export function useGameState(roomCode: string, mySpotifyId: string | null) {
       // New guess locked in
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'guesses' },
+        { event: 'INSERT', schema: 'public', table: 'sr_guesses' },
         (payload) => {
           const guess = payload.new as Guess
           setState((prev) => {
@@ -148,7 +148,7 @@ export function useGameState(roomCode: string, mySpotifyId: string | null) {
       // Round status change (playing → revealing → done)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'rounds', filter: `room_id=eq.${roomId}` },
+        { event: 'UPDATE', schema: 'public', table: 'sr_rounds', filter: `room_id=eq.${roomId}` },
         (payload) => {
           setState((prev) => {
             if (prev.currentRound?.id !== payload.new.id) return prev
@@ -159,7 +159,7 @@ export function useGameState(roomCode: string, mySpotifyId: string | null) {
       // Host events (replay, skip)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'room_events', filter: `room_id=eq.${roomId}` },
+        { event: 'INSERT', schema: 'public', table: 'sr_room_events', filter: `room_id=eq.${roomId}` },
         (payload) => {
           const evt = payload.new as RoomEvent
           if (evt.type === 'replay') {

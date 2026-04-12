@@ -27,7 +27,7 @@ export async function POST(
   const db = createAdminClient()
 
   const { data: room } = await db
-    .from('rooms')
+    .from('sr_rooms')
     .select()
     .eq('code', (await params).code)
     .single()
@@ -37,7 +37,7 @@ export async function POST(
   }
 
   const { data: round } = await db
-    .from('rounds')
+    .from('sr_rounds')
     .select()
     .eq('room_id', room.id)
     .eq('round_number', room.current_round)
@@ -48,7 +48,7 @@ export async function POST(
   }
 
   const { data: player } = await db
-    .from('players')
+    .from('sr_players')
     .select()
     .eq('room_id', room.id)
     .eq('spotify_id', session.spotifyId)
@@ -58,7 +58,7 @@ export async function POST(
 
   // Idempotent — ignore if already locked
   const { data: existing } = await db
-    .from('guesses')
+    .from('sr_guesses')
     .select()
     .eq('round_id', round.id)
     .eq('player_id', player.id)
@@ -70,7 +70,7 @@ export async function POST(
 
   // Validate that ownerId and trackId are valid choices for this round
   const { data: validOwner } = await db
-    .from('players')
+    .from('sr_players')
     .select('id')
     .eq('room_id', room.id)
     .eq('id', ownerId)
@@ -81,7 +81,7 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid guess' }, { status: 400 })
   }
 
-  await db.from('guesses').insert({
+  await db.from('sr_guesses').insert({
     round_id: round.id,
     player_id: player.id,
     guessed_owner_id: ownerId,
@@ -90,12 +90,12 @@ export async function POST(
 
   // Check if all connected players have locked in
   const { data: players } = await db
-    .from('players')
+    .from('sr_players')
     .select()
     .eq('room_id', room.id)
 
   const { data: guesses } = await db
-    .from('guesses')
+    .from('sr_guesses')
     .select('player_id')
     .eq('round_id', round.id)
 

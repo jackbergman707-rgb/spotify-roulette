@@ -5,13 +5,13 @@ export async function advanceToNextRound(
   db: ReturnType<typeof createAdminClient>,
   roomId: string,
 ) {
-  const { data: room } = await db.from('rooms').select().eq('id', roomId).single()
+  const { data: room } = await db.from('sr_rooms').select().eq('id', roomId).single()
   if (!room) return
 
-  const { data: players } = await db.from('players').select().eq('room_id', roomId)
-  const { data: allTracks } = await db.from('tracks').select().eq('room_id', roomId)
+  const { data: players } = await db.from('sr_players').select().eq('room_id', roomId)
+  const { data: allTracks } = await db.from('sr_tracks').select().eq('room_id', roomId)
   const { data: existingRounds } = await db
-    .from('rounds')
+    .from('sr_rounds')
     .select('track_id')
     .eq('room_id', roomId)
 
@@ -27,7 +27,7 @@ export async function advanceToNextRound(
   const ownerTracks = allTracks.filter((t) => t.player_id === picked.owner.id)
   const decoys = pickDecoys({ correctTrack: picked.track, allTracks: ownerTracks })
 
-  await db.from('rounds').insert({
+  await db.from('sr_rounds').insert({
     room_id: roomId,
     round_number: nextRound,
     track_id: picked.track.id,
@@ -36,5 +36,5 @@ export async function advanceToNextRound(
     decoy_ids: decoys.map((d) => d.id),
   })
 
-  await db.from('rooms').update({ current_round: nextRound }).eq('id', roomId)
+  await db.from('sr_rooms').update({ current_round: nextRound }).eq('id', roomId)
 }

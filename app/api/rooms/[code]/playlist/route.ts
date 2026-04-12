@@ -26,14 +26,14 @@ export async function POST(
   const { code } = await params
   const db = createAdminClient()
 
-  const { data: room } = await db.from('rooms').select().eq('code', code).single()
+  const { data: room } = await db.from('sr_rooms').select().eq('code', code).single()
   if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
   if (room.status !== 'lobby') {
     return NextResponse.json({ error: 'Game already started' }, { status: 409 })
   }
 
   const { data: player } = await db
-    .from('players')
+    .from('sr_players')
     .select()
     .eq('room_id', room.id)
     .eq('spotify_id', session.spotifyId)
@@ -42,7 +42,7 @@ export async function POST(
   if (!player) return NextResponse.json({ error: 'Not in room' }, { status: 403 })
 
   // Delete existing tracks for this player in this room (re-pick)
-  await db.from('tracks').delete().eq('room_id', room.id).eq('player_id', player.id)
+  await db.from('sr_tracks').delete().eq('room_id', room.id).eq('player_id', player.id)
 
   let tracks
   try {
@@ -76,13 +76,13 @@ export async function POST(
     }
   })
 
-  const { error: upsertError } = await db.from('tracks').upsert(rows, { onConflict: 'room_id,spotify_track_id' })
+  const { error: upsertError } = await db.from('sr_tracks').upsert(rows, { onConflict: 'room_id,spotify_track_id' })
   if (upsertError) {
     console.error('tracks upsert failed:', upsertError)
     return NextResponse.json({ error: `DB error: ${upsertError.message}` }, { status: 500 })
   }
 
-  const { error: playerError } = await db.from('players').update({ shield_track_id: `playlist:${playlistId}` }).eq('id', player.id)
+  const { error: playerError } = await db.from('sr_players').update({ shield_track_id: `playlist:${playlistId}` }).eq('id', player.id)
   if (playerError) {
     console.error('player update failed:', playerError)
     return NextResponse.json({ error: `Player update failed: ${playerError.message}` }, { status: 500 })

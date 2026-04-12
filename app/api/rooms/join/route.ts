@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   const db = createAdminClient()
 
   const { data: room } = await db
-    .from('rooms')
+    .from('sr_rooms')
     .select()
     .eq('code', code.toUpperCase())
     .single()
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   // Upsert player (handles reconnects)
   const { data: player, error } = await db
-    .from('players')
+    .from('sr_players')
     .upsert(
       {
         room_id: room.id,

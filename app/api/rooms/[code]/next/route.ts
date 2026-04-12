@@ -21,14 +21,14 @@ export async function POST(
   const { code } = await params
   const db = createAdminClient()
 
-  const { data: room } = await db.from('rooms').select().eq('code', code).single()
+  const { data: room } = await db.from('sr_rooms').select().eq('code', code).single()
   if (!room) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (room.host_id !== session.spotifyId) {
     return NextResponse.json({ error: 'Host only' }, { status: 403 })
   }
 
   const { data: round } = await db
-    .from('rounds')
+    .from('sr_rounds')
     .select()
     .eq('room_id', room.id)
     .eq('round_number', room.current_round)
@@ -39,10 +39,10 @@ export async function POST(
   }
 
   // Mark round done
-  await db.from('rounds').update({ status: 'done' }).eq('id', round.id)
+  await db.from('sr_rounds').update({ status: 'done' }).eq('id', round.id)
 
   if (round.round_number >= room.total_rounds) {
-    await db.from('rooms').update({ status: 'finished' }).eq('id', room.id)
+    await db.from('sr_rooms').update({ status: 'finished' }).eq('id', room.id)
   } else {
     await advanceToNextRound(db, room.id)
   }
