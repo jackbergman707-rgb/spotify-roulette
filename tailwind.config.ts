@@ -7,7 +7,16 @@ const config: Config = {
     './hooks/**/*.{ts,tsx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        night: '#080808',
+        card: '#121212',
+        'card-alt': '#1A1A1A',
+        spotify: '#1DB954',
+        gold: '#FFD700',
+        'gold-dark': '#B8860B',
+      },
+    },
   },
   plugins: [],
 }

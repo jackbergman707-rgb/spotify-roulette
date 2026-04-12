@@ -71,7 +71,6 @@ export function RevealAnimation({
   const [countingUp, setCountingUp] = useState(false)
   const [flyingPts, setFlyingPts] = useState<Record<string, boolean>>({})
 
-  // Calculate points each player earned this round
   const roundPts: Record<string, number> = {}
   guesses.forEach((g) => {
     const ownerRight = g.guessed_owner_id === owner.id
@@ -79,7 +78,6 @@ export function RevealAnimation({
     roundPts[g.player_id] = (ownerRight ? 2 : 0) + (songRight ? 1 : 0)
   })
 
-  // Previous score = current score - pts earned this round
   const prevScore = (p: Player) => p.score - (roundPts[p.id] ?? 0)
 
   useEffect(() => {
@@ -89,14 +87,11 @@ export function RevealAnimation({
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [])
 
-  // Trigger flying pts animation when transitioning to leaderboard
   useEffect(() => {
     if (phase === 'leaderboard') {
-      // Start flying badges
       const flying: Record<string, boolean> = {}
       players.forEach((p) => { if ((roundPts[p.id] ?? 0) > 0) flying[p.id] = true })
       setFlyingPts(flying)
-      // Count up after a short delay
       setTimeout(() => setCountingUp(true), 400)
     }
   }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -111,7 +106,7 @@ export function RevealAnimation({
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center px-6 text-center overflow-y-auto py-10">
+    <div className="fixed inset-0 z-50 bg-night flex flex-col items-center justify-center px-6 text-center overflow-y-auto py-10">
       <AnimatePresence mode="wait">
 
         {phase === 'song' && (
@@ -123,19 +118,17 @@ export function RevealAnimation({
             transition={{ duration: 0.5, ease: 'easeOut' }}
             className="space-y-3"
           >
-            <p className="text-white/40 text-xs uppercase tracking-widest">The song was</p>
-            <h2 className="text-4xl font-bold text-white leading-tight">{track.title}</h2>
-            <p className="text-white/60 text-xl">{track.artist}</p>
-            {!isFinale && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.4 }}
-                className="text-white/30 text-sm uppercase tracking-widest pt-6"
-              >
-                And it belongs to…
-              </motion.p>
-            )}
+            <p className="text-gray-500 text-xs font-black uppercase tracking-[0.3em]">The song was</p>
+            <h2 className="text-5xl font-black text-white tracking-tighter">{track.title}</h2>
+            <p className="text-spotify text-xl font-bold">{track.artist}</p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.4 }}
+              className="text-gray-500 text-xs font-black uppercase tracking-[0.3em] pt-8"
+            >
+              And it belongs to...
+            </motion.p>
           </motion.div>
         )}
 
@@ -146,25 +139,25 @@ export function RevealAnimation({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.45, ease: 'backOut' }}
-            className="space-y-5"
+            className="space-y-6"
           >
             <div className="space-y-1">
-              <p className="text-white/40 text-xs uppercase tracking-widest">The song was</p>
+              <p className="text-gray-500 text-xs font-black uppercase tracking-[0.3em]">The song was</p>
               <h2 className="text-2xl font-bold text-white">{track.title}</h2>
-              <p className="text-white/50">{track.artist}</p>
+              <p className="text-spotify font-bold">{track.artist}</p>
             </div>
             <div>
-              <p className="text-white/40 text-xs uppercase tracking-widest mb-2">
+              <p className="text-gray-500 text-xs font-black uppercase tracking-[0.3em] mb-3">
                 {isFinale ? 'Owned by' : 'From the library of'}
               </p>
-              <motion.p
+              <motion.h3
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1, duration: 0.4 }}
-                className="text-5xl font-black text-green-400"
+                className="text-6xl font-black uppercase italic text-spotify tracking-tighter"
               >
                 {owner.display_name}
-              </motion.p>
+              </motion.h3>
             </div>
           </motion.div>
         )}
@@ -175,56 +168,52 @@ export function RevealAnimation({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="w-full max-w-sm space-y-4"
+            className="w-full max-w-sm space-y-6"
           >
-            <div className="text-center space-y-0.5">
-              <p className="text-green-400 font-semibold">{owner.display_name}&apos;s song</p>
-              <p className="text-white font-bold">{track.title}</p>
-              <p className="text-white/50 text-sm">{track.artist}</p>
-            </div>
+            <h4 className="text-gray-600 text-[10px] font-black uppercase tracking-widest text-center">Results</h4>
 
-            {!isFinale && guesses.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-widest text-white/30 text-left">Round results</p>
-                {guesses.map((guess, i) => {
-                  const player = players.find((p) => p.id === guess.player_id)
-                  if (!player) return null
-                  const ownerRight = guess.guessed_owner_id === owner.id
-                  const songRight = guess.guessed_track_id === track.id
-                  const pts = (ownerRight ? 2 : 0) + (songRight ? 1 : 0)
-                  return (
-                    <motion.div
-                      key={guess.id}
-                      initial={{ opacity: 0, x: -16 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-white/5 border border-white/5"
-                    >
-                      <span className="text-white text-sm font-medium">{player.display_name}</span>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={ownerRight ? 'text-green-400' : 'text-white/25'}>
-                          {ownerRight ? '✓' : '✗'} owner
+            <div className="space-y-2">
+              {guesses.map((guess, i) => {
+                const player = players.find((p) => p.id === guess.player_id)
+                if (!player) return null
+                const ownerRight = guess.guessed_owner_id === owner.id
+                const songRight = guess.guessed_track_id === track.id
+                const pts = (ownerRight ? 2 : 0) + (songRight ? 1 : 0)
+                const hasCorrect = ownerRight || songRight
+                return (
+                  <motion.div
+                    key={guess.id}
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                    className={[
+                      'flex items-center justify-between p-4 rounded-2xl border',
+                      hasCorrect
+                        ? 'bg-white/5 border-spotify'
+                        : 'bg-white/5 border-red-500/20',
+                    ].join(' ')}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-white font-bold">{player.display_name}</span>
+                      <div className="flex gap-1">
+                        <span className={ownerRight ? 'text-spotify' : 'text-red-500'}>
+                          {ownerRight ? '\u2713' : '\u2717'}
                         </span>
-                        <span className={songRight ? 'text-green-400' : 'text-white/25'}>
-                          {songRight ? '✓' : '✗'} song
+                        <span className={songRight ? 'text-spotify' : 'text-red-500'}>
+                          {songRight ? '\u2713' : '\u2717'}
                         </span>
-                        {pts > 0 && (
-                          <motion.span
-                            initial={{ scale: 0.5, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ delay: i * 0.1 + 0.2, type: 'spring' }}
-                            className="font-black text-green-400 text-sm ml-1"
-                          >
-                            +{pts}
-                          </motion.span>
-                        )}
-                        {pts === 0 && <span className="text-white/25 ml-1">+0</span>}
                       </div>
-                    </motion.div>
-                  )
-                })}
-              </div>
-            )}
+                    </div>
+                    <span className={[
+                      'font-black text-xl',
+                      pts > 0 ? 'text-spotify' : 'text-gray-600',
+                    ].join(' ')}>
+                      +{pts} <span className="text-[8px] uppercase tracking-widest opacity-60">pts</span>
+                    </span>
+                  </motion.div>
+                )
+              })}
+            </div>
           </motion.div>
         )}
 
@@ -235,7 +224,7 @@ export function RevealAnimation({
             animate={{ opacity: 1 }}
             className="w-full max-w-sm space-y-6"
           >
-            <p className="text-xs uppercase tracking-widest text-white/30">Standings</p>
+            <p className="text-gray-600 text-[10px] font-black uppercase tracking-widest text-center">Standings</p>
 
             <div className="space-y-2">
               {sortedPlayers.map((p, i) => {
@@ -248,18 +237,16 @@ export function RevealAnimation({
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.08, type: 'spring', stiffness: 200, damping: 22 }}
                     className={[
-                      'relative flex items-center gap-3 px-4 py-3 rounded-xl border',
-                      i === 0 ? 'bg-green-500/10 border-green-500/30' : 'bg-white/5 border-white/5',
+                      'relative flex items-center gap-3 px-4 py-3 rounded-2xl border',
+                      i === 0 ? 'bg-spotify/10 border-spotify/30' : 'bg-white/5 border-white/5',
                     ].join(' ')}
                   >
                     <span className="text-white/40 text-sm w-4">{i + 1}</span>
-                    {i === 0 && <span>🏆</span>}
-                    <span className={['flex-1 font-medium text-sm', i === 0 ? 'text-green-300' : 'text-white'].join(' ')}>
+                    <span className={['flex-1 font-bold text-sm uppercase', i === 0 ? 'text-spotify' : 'text-white'].join(' ')}>
                       {p.display_name}
                     </span>
 
                     <div className="relative flex items-center gap-1.5">
-                      {/* Pts badge flying in */}
                       {pts > 0 && isFly && (
                         <motion.span
                           initial={{ opacity: 1, y: 0, x: 0 }}
@@ -268,20 +255,20 @@ export function RevealAnimation({
                           onAnimationComplete={() =>
                             setFlyingPts((prev) => ({ ...prev, [p.id]: false }))
                           }
-                          className="absolute right-10 text-green-400 font-black text-sm pointer-events-none"
+                          className="absolute right-10 text-spotify font-black text-sm pointer-events-none"
                         >
                           +{pts}
                         </motion.span>
                       )}
 
                       <motion.span
-                        className="font-bold text-white tabular-nums text-base"
+                        className="font-black text-white tabular-nums text-xl"
                         animate={countingUp && pts > 0 ? { scale: [1, 1.3, 1] } : {}}
                         transition={{ delay: i * 0.08 + 0.3, duration: 0.4 }}
                       >
                         <AnimatedScore target={p.score} enabled={countingUp} />
                       </motion.span>
-                      <span className="text-white/30 text-xs">pts</span>
+                      <span className="text-gray-500 text-[8px] font-bold uppercase">pts</span>
                     </div>
                   </motion.div>
                 )
@@ -295,9 +282,9 @@ export function RevealAnimation({
                 transition={{ delay: 0.4 + sortedPlayers.length * 0.08 }}
                 onClick={handleNext}
                 disabled={advancing}
-                className="w-full py-4 bg-green-500 text-black font-semibold rounded-xl hover:bg-green-400 active:scale-95 disabled:opacity-50 transition-all text-lg"
+                className="w-full py-5 bg-white text-black font-black text-xl rounded-2xl active:scale-95 disabled:opacity-50 transition-all uppercase shadow-2xl"
               >
-                {advancing ? '…' : isLastRound ? 'See final results' : 'Next round →'}
+                {advancing ? '...' : isLastRound ? 'See Final Results' : 'Next Round \u2192'}
               </motion.button>
             )}
 
@@ -306,9 +293,9 @@ export function RevealAnimation({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5 }}
-                className="text-white/30 text-sm"
+                className="text-gray-500 text-sm font-bold"
               >
-                Waiting for host to continue…
+                Waiting for host to continue...
               </motion.p>
             )}
           </motion.div>

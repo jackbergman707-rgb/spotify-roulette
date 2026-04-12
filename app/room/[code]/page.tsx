@@ -25,7 +25,6 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
   const isHost = fullState.room?.host_id === spotifyId
   const isFinished = fullState.room?.status === 'finished'
 
-  // Track the reveal overlay independently — stays visible until dismissed
   const [revealData, setRevealData] = useState<{
     track: Track
     owner: Player
@@ -38,7 +37,6 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
 
   const lastRevealedRoundId = useRef<string | null>(null)
 
-  // When a round enters 'revealing' status, snapshot its data for the overlay
   useEffect(() => {
     const round = fullState.currentRound
     if (
@@ -53,7 +51,6 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
         const roomId = fullState.room.id
         const roundTrack = fullState.roundTrack
         const guesses = fullState.guesses
-        // Fetch fresh players so scores reflect points just awarded
         supabase
           .from('sr_players')
           .select()
@@ -74,7 +71,6 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
     }
   }, [fullState.currentRound?.status, fullState.currentRound?.id])
 
-  // Shuffle song options once per round
   const songOptions: Track[] = useMemo(() => {
     if (!fullState.roundTrack) return []
     const options = [fullState.roundTrack, ...fullState.roundDecoys]
@@ -107,8 +103,8 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
 
   if (fullState.isLoading) {
     return (
-      <main className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-6 h-6 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
+      <main className="min-h-screen bg-night flex items-center justify-center">
+        <div className="w-6 h-6 rounded-full border-2 border-spotify border-t-transparent animate-spin" />
       </main>
     )
   }
@@ -117,7 +113,7 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
   const isPlaying_ = fullState.currentRound?.status === 'playing'
 
   return (
-    <main className="min-h-screen bg-black text-white">
+    <main className="min-h-screen bg-night text-white">
       {isHost && fullState.currentRound && !showingReveal && (
         <HostControlBar
           roomCode={code}
@@ -133,46 +129,58 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
         {isFinished && !showingReveal ? (
           <div className="flex flex-col items-center gap-8 mt-10">
             <div className="text-center">
-              <h2 className="text-3xl font-black">Game over</h2>
-              <p className="text-white/40 mt-1">Final standings</p>
+              <h2 className="text-5xl font-black uppercase italic tracking-tighter">Game Over</h2>
+              <p className="text-gray-500 font-bold uppercase tracking-widest text-xs mt-2">Final Standings</p>
             </div>
             <Leaderboard players={fullState.players} highlightId={myPlayerId ?? undefined} />
+            <div className="w-full max-w-sm space-y-4 mt-4">
+              <button
+                onClick={() => window.location.href = '/'}
+                className="w-full py-5 bg-spotify text-black font-black text-xl rounded-2xl active:scale-95 transition-transform uppercase shadow-[0_0_30px_rgba(29,185,84,0.3)]"
+              >
+                Play Again
+              </button>
+              <button
+                onClick={() => window.location.href = '/'}
+                className="w-full py-4 text-white/40 font-bold uppercase text-xs tracking-widest active:opacity-60"
+              >
+                Back to Menu
+              </button>
+            </div>
           </div>
         ) : !showingReveal ? (
           <>
-            <div className="flex items-center justify-between">
-              <p className="text-white/40 text-sm">
-                Round {fullState.room?.current_round} of {fullState.room?.total_rounds}
-                {fullState.currentRound?.is_finale && ' — finale'}
-              </p>
-              <p className="text-white/30 text-sm">{myPlayer?.score ?? 0} pts</p>
+            {/* Header */}
+            <div className="flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-white font-black italic uppercase">
+                  Round {fullState.room?.current_round}{' '}
+                  <span className="text-gray-600">/ {fullState.room?.total_rounds}</span>
+                </span>
+                {fullState.currentRound?.is_finale && (
+                  <span className="text-spotify text-[10px] font-black uppercase tracking-widest">Finale</span>
+                )}
+                <div className="flex gap-1 mt-1">
+                  {Array.from({ length: fullState.room?.total_rounds ?? 0 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={[
+                        'w-1 h-1 rounded-full',
+                        i < (fullState.room?.current_round ?? 0) ? 'bg-spotify' : 'bg-white/20',
+                      ].join(' ')}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest">Score</p>
+                <p className="text-white font-black text-xl">
+                  {myPlayer?.score ?? 0} <span className="text-spotify">pts</span>
+                </p>
+              </div>
             </div>
 
-            {playerError ? (
-              <p className="text-red-400 text-sm">{playerError}</p>
-            ) : (
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={play}
-                  disabled={!isReady}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-500 text-black font-semibold rounded-full text-sm hover:bg-green-400 active:scale-95 transition-all disabled:opacity-40"
-                >
-                  {!isReady ? 'Connecting…' : isPlaying ? '▶ Playing' : '▶ Play clip'}
-                </button>
-                {isPlaying && (
-                  <span className="flex gap-0.5 items-end">
-                    {[1, 2, 3, 4].map((i) => (
-                      <span
-                        key={i}
-                        className="w-1 bg-green-400 rounded-full animate-bounce"
-                        style={{ height: `${8 + i * 4}px`, animationDelay: `${i * 0.1}s` }}
-                      />
-                    ))}
-                  </span>
-                )}
-              </div>
-            )}
-
+            {/* Player status */}
             {isPlaying_ && myPlayerId && (
               <PlayerStatusBar
                 players={fullState.players}
@@ -181,6 +189,40 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
               />
             )}
 
+            {/* Play button */}
+            <div className="flex flex-col items-center justify-center py-8">
+              {playerError ? (
+                <p className="text-red-400 text-sm font-bold">{playerError}</p>
+              ) : (
+                <>
+                  <button
+                    onClick={play}
+                    disabled={!isReady}
+                    className="w-24 h-24 rounded-full bg-spotify flex items-center justify-center shadow-[0_0_40px_rgba(29,185,84,0.3)] active:scale-95 transition-transform disabled:opacity-40"
+                  >
+                    <svg viewBox="0 0 24 24" fill="black" className="w-10 h-10 ml-1">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </button>
+                  {isPlaying && (
+                    <div className="flex items-end gap-1 mt-6 h-5">
+                      {[0.1, 0.3, 0.2, 0.1].map((delay, i) => (
+                        <div
+                          key={i}
+                          className="vis-bar w-1 bg-spotify rounded-full"
+                          style={{ animationDelay: `${delay}s` }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-gray-500 font-bold text-xs uppercase tracking-[0.2em] mt-4">
+                    {!isReady ? 'Connecting...' : isPlaying ? 'Playing clip...' : 'Tap to play'}
+                  </p>
+                </>
+              )}
+            </div>
+
+            {/* Guess form */}
             {isPlaying_ && !fullState.myGuess && myPlayerId && (
               <GuessForm
                 players={fullState.players}
@@ -193,15 +235,15 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
             )}
 
             {isPlaying_ && fullState.myGuess && (
-              <p className="text-center text-white/40 text-sm py-4">
-                Locked in. Waiting for others…
+              <p className="text-center text-gray-500 text-sm py-4 font-bold uppercase tracking-widest">
+                Locked in. Waiting for others...
               </p>
             )}
           </>
         ) : null}
       </div>
 
-      {/* Reveal overlay — stays until host clicks Next round */}
+      {/* Reveal overlay */}
       {showingReveal && revealData && (
         <RevealAnimation
           track={revealData.track}

@@ -12,7 +12,7 @@ export function PlayerStatusBar({ players, guesses, myPlayerId }: Props) {
   const lockedIds = new Set(guesses.map((g) => g.player_id))
 
   return (
-    <div className="flex flex-wrap gap-2 justify-center py-3">
+    <div className="flex gap-2 flex-wrap">
       {players
         .filter((p) => p.is_connected)
         .map((p) => {
@@ -22,21 +22,20 @@ export function PlayerStatusBar({ players, guesses, myPlayerId }: Props) {
             <div
               key={p.id}
               className={[
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-300',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase border transition-all duration-300',
                 locked
-                  ? 'bg-green-500/20 text-green-300 border border-green-500/40'
-                  : 'bg-white/5 text-white/50 border border-white/10',
-                isMe ? 'ring-1 ring-white/30' : '',
+                  ? 'bg-spotify/20 text-spotify border-spotify/40'
+                  : 'bg-white/5 text-gray-400 border-white/5 opacity-50',
+                isMe ? 'ring-1 ring-white/30 pulse-ring' : '',
               ].join(' ')}
             >
-              <span
+              <div
                 className={[
-                  'w-2 h-2 rounded-full',
-                  locked ? 'bg-green-400' : 'bg-white/20 animate-pulse',
+                  'w-1.5 h-1.5 rounded-full',
+                  locked ? 'bg-spotify' : 'bg-gray-600 animate-pulse',
                 ].join(' ')}
               />
-              {p.display_name}
-              {isMe && <span className="text-white/40 text-xs">(you)</span>}
+              {isMe ? 'You' : p.display_name}
             </div>
           )
         })}

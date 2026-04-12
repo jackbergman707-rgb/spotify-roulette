@@ -4,6 +4,11 @@
 
 :root {
   color-scheme: dark;
+  --spotify-green: #1DB954;
+  --night-bg: #080808;
+  --card-bg: #121212;
+  --card-alt: #1A1A1A;
+  --gold: #FFD700;
 }
 
 * {
@@ -11,10 +16,43 @@
 }
 
 body {
-  @apply bg-black text-white;
+  @apply bg-night text-white;
 }
 
 /* Prevent pull-to-refresh on mobile */
 html {
   overscroll-behavior: none;
+}
+
+/* Neon glow effect for headings */
+.neon-glow {
+  text-shadow: 0 0 10px var(--spotify-green), 0 0 20px var(--spotify-green);
+}
+
+.glow-text {
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+}
+
+/* Pulse ring animation */
+.pulse-ring {
+  animation: pulse-ring 2s infinite;
+}
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(29, 185, 84, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0); }
+}
+
+/* Audio visualizer bars */
+.vis-bar {
+  animation: vis-bounce 0.6s infinite alternate;
+}
+@keyframes vis-bounce {
+  from { height: 4px; }
+  to { height: 20px; }
+}
+
+/* Range slider */
+input[type='range'] {
+  accent-color: var(--spotify-green);
 }

@@ -59,106 +59,137 @@ export default function Home() {
 
   if (status === 'loading') {
     return (
-      <main className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-6 h-6 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
+      <main className="min-h-screen bg-night flex items-center justify-center">
+        <div className="w-6 h-6 rounded-full border-2 border-spotify border-t-transparent animate-spin" />
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-6 gap-10">
-      <div className="text-center">
-        <h1 className="text-4xl font-black tracking-tight">Spotify Roulette</h1>
-        <p className="text-white/40 mt-2 text-sm">Whose music is this anyway?</p>
+    <main className="min-h-screen bg-night text-white flex flex-col">
+      {/* Header */}
+      <div className="pt-16 px-8 mb-8">
+        <h1 className="text-5xl font-black italic tracking-tighter uppercase leading-[0.85]">
+          Spotify<br />
+          <span className="text-spotify neon-glow">Roulette</span>
+        </h1>
+        <p className="text-gray-500 font-medium mt-3 uppercase text-xs tracking-widest">
+          Whose music is this anyway?
+        </p>
       </div>
 
       {!session ? (
-        <button
-          onClick={() => signIn('spotify')}
-          className="flex items-center gap-3 bg-green-500 text-black font-semibold px-8 py-4 rounded-full hover:bg-green-400 transition-colors text-lg"
-        >
-          Connect Spotify
-        </button>
+        <div className="flex-1 flex flex-col justify-end px-8 pb-12">
+          <button
+            onClick={() => signIn('spotify')}
+            className="w-full py-5 bg-spotify text-white font-bold text-xl rounded-2xl flex items-center justify-center gap-3 active:scale-95 transition-transform"
+          >
+            Connect Spotify
+          </button>
+        </div>
       ) : (
-        <div className="w-full max-w-sm space-y-6">
-          {/* Display name */}
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-widest text-white/30">Your name</p>
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder={session.user?.name ?? 'Enter your name'}
-              maxLength={24}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30"
-            />
-          </div>
+        <>
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto px-8 pb-32 space-y-10">
+            {/* Create a room */}
+            <div className="space-y-6">
+              <h2 className="text-gray-400 font-bold text-sm uppercase tracking-widest">
+                Create a Room
+              </h2>
 
-          <div className="space-y-3">
-            <p className="text-xs uppercase tracking-widest text-white/30">Create a room</p>
-            <div className="flex items-center gap-3">
-              <label className="text-sm text-white/60">Rounds</label>
-              <input
-                type="range"
-                min={3}
-                max={15}
-                value={rounds}
-                onChange={(e) => setRounds(Number(e.target.value))}
-                className="flex-1 accent-green-500"
-              />
-              <span className="w-6 text-center font-bold">{rounds}</span>
-            </div>
-            <button
-              onClick={createRoom}
-              disabled={creating}
-              className="w-full py-4 bg-green-500 text-black font-semibold rounded-xl hover:bg-green-400 disabled:opacity-50 transition-colors"
-            >
-              {creating ? 'Creating…' : 'Create room'}
-            </button>
-          </div>
+              {/* Name input */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase px-1">Your Name</label>
+                <input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder={session.user?.name ?? 'Enter your name'}
+                  maxLength={24}
+                  className="w-full bg-card-alt border border-white/5 rounded-2xl p-5 text-white font-bold outline-none focus:border-spotify transition-colors placeholder:text-white/20"
+                />
+              </div>
 
-          <div className="relative flex items-center gap-3">
-            <div className="flex-1 h-px bg-white/10" />
-            <span className="text-white/30 text-xs">or</span>
-            <div className="flex-1 h-px bg-white/10" />
-          </div>
+              {/* Rounds slider */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-end px-1">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Rounds</label>
+                  <span className="text-spotify font-black text-2xl">{rounds}</span>
+                </div>
+                <input
+                  type="range"
+                  min={3}
+                  max={15}
+                  value={rounds}
+                  onChange={(e) => setRounds(Number(e.target.value))}
+                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
 
-          <div className="space-y-3">
-            <p className="text-xs uppercase tracking-widest text-white/30">Join a room</p>
-            <div className="flex gap-2">
-              <input
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                placeholder="Room code"
-                maxLength={6}
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 uppercase tracking-widest font-mono focus:outline-none focus:border-white/30"
-              />
               <button
-                onClick={joinRoom}
-                disabled={joining || !joinCode.trim()}
-                className="px-5 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white disabled:opacity-40 transition-colors"
+                onClick={createRoom}
+                disabled={creating}
+                className="w-full py-5 bg-spotify text-black font-black text-xl rounded-2xl active:scale-95 transition-transform uppercase disabled:opacity-50 shadow-[0_0_30px_rgba(29,185,84,0.3)]"
               >
-                {joining ? '…' : 'Join'}
+                {creating ? 'Creating...' : 'Create Room'}
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="flex items-center gap-4 py-2">
+              <div className="h-[1px] flex-1 bg-white/10" />
+              <span className="text-gray-600 font-black text-xs uppercase">OR</span>
+              <div className="h-[1px] flex-1 bg-white/10" />
+            </div>
+
+            {/* Join a room */}
+            <div className="space-y-6">
+              <h2 className="text-gray-400 font-bold text-sm uppercase tracking-widest">
+                Join a Room
+              </h2>
+              <div className="flex gap-3">
+                <input
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  placeholder="ROOM CODE"
+                  maxLength={6}
+                  className="flex-1 bg-card-alt border border-white/5 rounded-2xl p-5 text-white font-black text-center tracking-[0.3em] uppercase outline-none focus:border-spotify transition-colors placeholder:text-white/20"
+                />
+                <button
+                  onClick={joinRoom}
+                  disabled={joining || !joinCode.trim()}
+                  className="px-8 py-5 bg-white/5 border border-white/10 text-white font-bold rounded-2xl active:scale-95 transition-transform disabled:opacity-40"
+                >
+                  {joining ? '...' : 'Join'}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-red-400 text-sm text-center font-bold">{error}</p>
+            )}
+          </div>
+
+          {/* Footer identity */}
+          <div className="fixed bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-night via-night to-transparent">
+            <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
+              <div className="flex items-center gap-3">
+                {session.user?.image && (
+                  <img src={session.user.image} alt="" className="w-10 h-10 rounded-full object-cover" />
+                )}
+                <div className="flex flex-col">
+                  <span className="text-white font-bold text-sm">{session.user?.name}</span>
+                  <span className="text-gray-500 text-[10px] uppercase font-bold tracking-widest">Spotify Connected</span>
+                </div>
+              </div>
+              <button
+                onClick={() => signOut()}
+                className="text-spotify text-xs font-black uppercase tracking-widest underline underline-offset-4"
+              >
+                Sign Out
               </button>
             </div>
           </div>
-
-          {error && (
-            <p className="text-red-400 text-sm text-center">{error}</p>
-          )}
-
-          <div className="flex items-center justify-center gap-3">
-            {session.user?.image && (
-              <img src={session.user.image} alt="" className="w-6 h-6 rounded-full" />
-            )}
-            <p className="text-white/30 text-xs">{session.user?.name}</p>
-            <button
-              onClick={() => signOut()}
-              className="text-xs text-white/30 hover:text-white/60 underline transition-colors"
-            >
-              Sign out
-            </button>
-          </div>
-        </div>
+        </>
       )}
     </main>
   )

@@ -31,7 +31,6 @@ export default function LobbyPage({ params }: { params: Promise<{ code: string }
 
   const isHost = room?.host_id === session?.spotifyId
   const myPlayer = players.find((p) => p.spotify_id === session?.spotifyId)
-  // We repurpose shield_track_id to track playlist selection
   const allPlayersReady = players.length > 0 && players.every((p) => p.shield_track_id !== null)
 
   const loadData = useCallback(async () => {
@@ -51,7 +50,6 @@ export default function LobbyPage({ params }: { params: Promise<{ code: string }
 
   useEffect(() => { loadData() }, [loadData])
 
-  // Load playlists once session is ready
   useEffect(() => {
     if (!session?.accessToken) return
     setLoadingPlaylists(true)
@@ -65,12 +63,10 @@ export default function LobbyPage({ params }: { params: Promise<{ code: string }
       .finally(() => setLoadingPlaylists(false))
   }, [session?.accessToken])
 
-  // Check if this player already confirmed a playlist
   useEffect(() => {
     if (myPlayer?.shield_track_id) setPlaylistConfirmed(true)
   }, [myPlayer?.shield_track_id])
 
-  // Realtime
   useEffect(() => {
     if (!room) return
     const channel = supabase
@@ -119,112 +115,144 @@ export default function LobbyPage({ params }: { params: Promise<{ code: string }
   }
 
   return (
-    <main className="min-h-screen bg-black text-white px-6 py-10 flex flex-col items-center gap-8">
-      {/* Room code */}
-      <div className="text-center">
-        <p className="text-white/40 text-xs uppercase tracking-widest">Room code</p>
-        <h1 className="text-5xl font-black tracking-widest mt-1">{code}</h1>
-        <p className="text-white/30 text-sm mt-2">Share this code — no app download needed</p>
+    <main className="min-h-screen bg-night text-white flex flex-col">
+      {/* Room code header */}
+      <div className="pt-16 pb-8 px-8 text-center">
+        <p className="text-gray-500 text-xs font-black uppercase tracking-[0.2em] mb-2">Room Code</p>
+        <h2 className="text-white text-5xl font-black tracking-[0.2em] uppercase glow-text">{code}</h2>
+        <p className="text-spotify text-[10px] font-bold uppercase tracking-widest mt-3">
+          Share this code with your crew
+        </p>
       </div>
 
-      {/* Players list */}
-      <div className="w-full max-w-sm">
-        <p className="text-xs uppercase tracking-widest text-white/30 mb-3">Players</p>
-        <div className="space-y-2">
-          {players.map((p) => (
-            <div key={p.id} className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-xl border border-white/5">
-              {p.avatar_url && <img src={p.avatar_url} alt="" className="w-8 h-8 rounded-full" />}
-              <span className="font-medium">{p.display_name}</span>
-              <span className="ml-auto text-xs">
-                {p.shield_track_id
-                  ? <span className="text-green-400">Ready ✓</span>
-                  : <span className="text-white/30">Choosing…</span>
-                }
-              </span>
-              {p.spotify_id === room?.host_id && (
-                <span className="text-xs text-white/20">host</span>
+      {/* Main scrollable content */}
+      <div className="flex-1 overflow-y-auto px-6 space-y-8 pb-32">
+        {/* Players */}
+        <div className="space-y-4">
+          <h3 className="text-gray-600 text-[10px] font-black uppercase tracking-widest ml-2">Players</h3>
+          <div className="flex flex-wrap gap-2">
+            {players.map((p) => (
+              <div
+                key={p.id}
+                className={[
+                  'flex items-center gap-2 p-1.5 pr-4 rounded-full border',
+                  p.spotify_id === room?.host_id
+                    ? 'bg-card border-spotify/30'
+                    : 'bg-card border-white/5',
+                ].join(' ')}
+              >
+                {p.avatar_url && (
+                  <img src={p.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                )}
+                {!p.avatar_url && (
+                  <div className="w-8 h-8 rounded-full bg-white/10" />
+                )}
+                <span className={p.shield_track_id ? 'text-white font-bold text-xs' : 'text-gray-400 font-bold text-xs'}>
+                  {p.display_name}
+                </span>
+                {p.spotify_id === room?.host_id && (
+                  <span className="text-spotify text-[10px] font-black">HOST</span>
+                )}
+                {p.shield_track_id ? (
+                  <span className="text-spotify text-[10px]">&#10003;</span>
+                ) : (
+                  <span className="text-gray-600 text-xs animate-spin inline-block">&#9696;</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Playlist picker */}
+        <div className="space-y-4">
+          {!playlistConfirmed ? (
+            <>
+              <h3 className="text-gray-600 text-[10px] font-black uppercase tracking-widest ml-2">
+                Stake a Playlist
+              </h3>
+              {loadingPlaylists ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-5 h-5 rounded-full border-2 border-spotify border-t-transparent animate-spin" />
+                </div>
+              ) : playlistError ? (
+                <p className="text-red-400 text-sm py-4 text-center font-bold">{playlistError}</p>
+              ) : playlists.length === 0 ? (
+                <p className="text-gray-500 text-sm py-4 text-center">No playlists found</p>
+              ) : (
+                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                  {playlists.map((pl) => (
+                    <button
+                      key={pl.id}
+                      onClick={() => setSelectedPlaylist(pl)}
+                      className={[
+                        'w-full flex items-center gap-4 p-3 rounded-2xl border transition-all text-left',
+                        selectedPlaylist?.id === pl.id
+                          ? 'bg-card-alt border-2 border-spotify shadow-[0_0_15px_rgba(29,185,84,0.2)]'
+                          : 'bg-card-alt border border-white/5 opacity-60 hover:opacity-100',
+                      ].join(' ')}
+                    >
+                      {pl.images?.[0] && (
+                        <img src={pl.images[0].url} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-white font-bold truncate">{pl.name}</h4>
+                        <p className="text-gray-500 text-xs">{pl.items?.total ?? 0} tracks</p>
+                      </div>
+                      {selectedPlaylist?.id === pl.id && (
+                        <span className="text-spotify text-2xl">&#10003;</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
               )}
+
+              <button
+                onClick={handleConfirmPlaylist}
+                disabled={!selectedPlaylist || confirmingPlaylist}
+                className="w-full py-5 bg-spotify text-black font-black text-xl rounded-2xl active:scale-95 transition-transform uppercase disabled:opacity-40 shadow-[0_0_30px_rgba(29,185,84,0.3)]"
+              >
+                {confirmingPlaylist ? 'Loading tracks...' : selectedPlaylist ? `Use "${selectedPlaylist.name}"` : 'Select a playlist'}
+              </button>
+            </>
+          ) : (
+            <div className="text-center py-8 space-y-2">
+              <p className="text-spotify font-black text-xl uppercase">Playlist Ready</p>
+              <p className="text-gray-500 text-sm font-bold">Waiting for everyone to pick...</p>
             </div>
-          ))}
+          )}
         </div>
       </div>
 
-      {/* Playlist picker */}
-      <div className="w-full max-w-sm space-y-3">
-        {!playlistConfirmed ? (
-          <>
-            <p className="text-xs uppercase tracking-widest text-white/30">Choose your playlist</p>
-            {loadingPlaylists ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="w-5 h-5 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
-              </div>
-            ) : playlistError ? (
-              <p className="text-red-400 text-sm py-4 text-center">{playlistError} — try signing out and back in</p>
-            ) : playlists.length === 0 ? (
-              <p className="text-white/40 text-sm py-4 text-center">No playlists found — sign out and back in to grant playlist access</p>
-            ) : (
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {playlists.map((pl) => (
-                  <button
-                    key={pl.id}
-                    onClick={() => setSelectedPlaylist(pl)}
-                    className={[
-                      'w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all',
-                      selectedPlaylist?.id === pl.id
-                        ? 'bg-green-500/20 border-green-500/50'
-                        : 'bg-white/5 border-white/10 hover:bg-white/10',
-                    ].join(' ')}
-                  >
-                    {pl.images?.[0] && (
-                      <img src={pl.images[0].url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-                    )}
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{pl.name}</p>
-                      <p className="text-white/40 text-xs">{pl.items?.total ?? 0} tracks</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <button
-              onClick={handleConfirmPlaylist}
-              disabled={!selectedPlaylist || confirmingPlaylist}
-              className="w-full py-3 bg-green-500 text-black font-semibold rounded-xl hover:bg-green-400 disabled:opacity-40 transition-colors"
-            >
-              {confirmingPlaylist ? 'Loading tracks…' : selectedPlaylist ? `Use "${selectedPlaylist.name}"` : 'Select a playlist'}
-            </button>
-          </>
-        ) : (
-          <div className="text-center py-4 space-y-1">
-            <p className="text-green-400 font-semibold">Playlist ready ✓</p>
-            <p className="text-white/40 text-sm">Waiting for everyone to pick…</p>
-          </div>
-        )}
-      </div>
-
-      {/* Host start button */}
+      {/* Fixed footer */}
       {isHost && (
-        <div className="w-full max-w-sm space-y-2">
+        <div className="fixed bottom-0 left-0 right-0 p-8 bg-night border-t border-white/5 z-20 text-center">
           {startError && (
-            <p className="text-red-400 text-sm text-center">{startError}</p>
+            <p className="text-red-400 text-sm text-center mb-4 font-bold">{startError}</p>
+          )}
+          {!allPlayersReady && (
+            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-4">
+              Waiting for all players to pick...
+            </p>
           )}
           <button
             onClick={handleStart}
             disabled={starting || !allPlayersReady}
-            className="w-full py-4 bg-green-500 text-black font-semibold rounded-xl hover:bg-green-400 disabled:opacity-40 transition-colors"
+            className={[
+              'w-full py-5 font-black text-xl rounded-2xl uppercase transition-all',
+              allPlayersReady
+                ? 'bg-spotify text-black active:scale-95 shadow-[0_0_30px_rgba(29,185,84,0.3)]'
+                : 'bg-white/5 border border-white/10 text-white/30 cursor-not-allowed',
+            ].join(' ')}
           >
-            {starting
-              ? 'Starting…'
-              : !allPlayersReady
-              ? 'Waiting for all players to pick a playlist…'
-              : 'Start game'}
+            {starting ? 'Starting...' : 'Start Game'}
           </button>
         </div>
       )}
 
       {!isHost && allPlayersReady && (
-        <p className="text-white/40 text-sm">Waiting for host to start…</p>
+        <div className="fixed bottom-0 left-0 right-0 p-8 bg-night border-t border-white/5 z-20 text-center">
+          <p className="text-gray-500 text-sm font-bold">Waiting for host to start...</p>
+        </div>
       )}
     </main>
   )
