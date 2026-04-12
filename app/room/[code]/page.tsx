@@ -81,7 +81,7 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
     return options
   }, [fullState.currentRound?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { play, isPlaying, isReady, error: playerError } = useSpotifyPlayer({
+  const { play, isPlaying, isReady, error: playerError, isMobileDevice } = useSpotifyPlayer({
     accessToken: session?.accessToken,
     spotifyTrackId: fullState.roundTrack?.spotify_track_id ?? null,
     startOffsetMs: fullState.roundTrack?.start_offset_ms ?? 0,
@@ -216,7 +216,13 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
                     </div>
                   )}
                   <p className="text-gray-500 font-bold text-xs uppercase tracking-[0.2em] mt-4">
-                    {!isReady ? 'Connecting...' : isPlaying ? 'Playing clip...' : 'Tap to play'}
+                    {!isReady
+                      ? isMobileDevice
+                        ? 'Open Spotify on your phone...'
+                        : 'Connecting...'
+                      : isPlaying
+                      ? 'Playing clip...'
+                      : 'Tap to play'}
                   </p>
                 </>
               )}

@@ -33,6 +33,11 @@ interface UseSpotifyPlayerOptions {
   replaySignal: number
 }
 
+function isMobile(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+}
+
 export function useSpotifyPlayer({
   accessToken,
   spotifyTrackId,
@@ -43,16 +48,13 @@ export function useSpotifyPlayer({
   const playerRef = useRef<SpotifyPlayer | null>(null)
   const deviceIdRef = useRef<string | null>(null)
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mobileRef = useRef(false)
   const [isReady, setIsReady] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const play = useCallback(async () => {
-    console.log('[SpotifyPlayer] play() called', { accessToken: !!accessToken, spotifyTrackId, deviceId: deviceIdRef.current })
-    if (!accessToken || !spotifyTrackId || !deviceIdRef.current) {
-      console.warn('[SpotifyPlayer] play() aborted — missing:', { accessToken: !!accessToken, spotifyTrackId, deviceId: deviceIdRef.current })
-      return
-    }
+    if (!accessToken || !spotifyTrackId || !deviceIdRef.current) return
 
     if (stopTimerRef.current) clearTimeout(stopTimerRef.current)
 
@@ -71,86 +73,141 @@ export function useSpotifyPlayer({
           }),
         },
       )
-      console.log('[SpotifyPlayer] play response:', res.status)
       if (!res.ok && res.status !== 204) {
-        const err = await res.json()
-        console.error('[SpotifyPlayer] play error:', err)
+        const err = await res.json().catch(() => ({}))
         setError(err?.error?.message ?? 'Playback failed')
         return
       }
       setIsPlaying(true)
       setError(null)
+
+      // Auto-stop after clip duration
       stopTimerRef.current = setTimeout(async () => {
-        await playerRef.current?.pause()
+        if (mobileRef.current && deviceIdRef.current) {
+          // Mobile: pause via Connect API
+          await fetch(
+            `https://api.spotify.com/v1/me/player/pause?device_id=${deviceIdRef.current}`,
+            {
+              method: 'PUT',
+              headers: { Authorization: `Bearer ${accessToken}` },
+            },
+          ).catch(() => {})
+        } else {
+          // Desktop: pause via SDK
+          await playerRef.current?.pause()
+        }
         setIsPlaying(false)
       }, clipDurationMs)
-    } catch (e) {
+    } catch {
       setError('Playback error')
     }
   }, [accessToken, spotifyTrackId, startOffsetMs, clipDurationMs])
 
-  // Load SDK script once
+  // Setup: desktop SDK or mobile Connect
   useEffect(() => {
     if (!accessToken) return
 
-    const setup = () => {
-      const player = new window.Spotify.Player({
-        name: 'Spotify Roulette',
-        getOAuthToken: (cb) => cb(accessToken),
-        volume: 0.8,
-      })
+    const mobile = isMobile()
+    mobileRef.current = mobile
 
-      player.addListener('ready', async (data) => {
-        const { device_id } = data as { device_id: string }
-        console.log('[SpotifyPlayer] device ready:', device_id)
-        deviceIdRef.current = device_id
-        // Transfer playback to this device so commands aren't restricted
-        await fetch('https://api.spotify.com/v1/me/player', {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ device_ids: [device_id], play: false }),
-        })
-        setIsReady(true)
-      })
+    if (mobile) {
+      // Mobile: find an active Spotify device
+      let cancelled = false
+      let pollInterval: ReturnType<typeof setInterval> | null = null
 
-      player.addListener('not_ready', () => {
-        setIsReady(false)
-      })
+      async function findDevice() {
+        try {
+          const res = await fetch('https://api.spotify.com/v1/me/player/devices', {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+          if (!res.ok) return
+          const data = await res.json()
+          const devices = data.devices as { id: string; is_active: boolean; type: string; name: string }[]
 
-      player.addListener('initialization_error', (data) => {
-        setError(`Init error: ${(data as { message: string }).message}`)
-      })
+          // Prefer active device, then any smartphone, then any device
+          const active = devices.find((d) => d.is_active)
+          const phone = devices.find((d) => d.type === 'Smartphone')
+          const device = active ?? phone ?? devices[0]
 
-      player.addListener('authentication_error', (data) => {
-        setError(`Auth error: ${(data as { message: string }).message}`)
-      })
+          if (device && !cancelled) {
+            deviceIdRef.current = device.id
+            setIsReady(true)
+            setError(null)
+            if (pollInterval) clearInterval(pollInterval)
+          } else if (!cancelled) {
+            setError('Open Spotify on your phone first')
+            setIsReady(false)
+          }
+        } catch {
+          if (!cancelled) setError('Could not reach Spotify')
+        }
+      }
 
-      player.addListener('account_error', (data) => {
-        setError(`Account error: ${(data as { message: string }).message} — Spotify Premium required`)
-      })
+      // Poll for devices every 3 seconds until one is found
+      findDevice()
+      pollInterval = setInterval(() => {
+        if (!deviceIdRef.current) findDevice()
+      }, 3000)
 
-      player.connect()
-      playerRef.current = player
-    }
-
-    if (window.Spotify) {
-      setup()
-    } else if (!document.getElementById('spotify-sdk')) {
-      window.onSpotifyWebPlaybackSDKReady = setup
-      const script = document.createElement('script')
-      script.id = 'spotify-sdk'
-      script.src = 'https://sdk.scdn.co/spotify-player.js'
-      script.async = true
-      document.body.appendChild(script)
+      return () => {
+        cancelled = true
+        if (pollInterval) clearInterval(pollInterval)
+      }
     } else {
-      window.onSpotifyWebPlaybackSDKReady = setup
-    }
+      // Desktop: Web Playback SDK
+      const setup = () => {
+        const player = new window.Spotify.Player({
+          name: 'Spotify Roulette',
+          getOAuthToken: (cb) => cb(accessToken),
+          volume: 0.8,
+        })
 
-    return () => {
-      playerRef.current?.disconnect()
+        player.addListener('ready', async (data) => {
+          const { device_id } = data as { device_id: string }
+          deviceIdRef.current = device_id
+          await fetch('https://api.spotify.com/v1/me/player', {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ device_ids: [device_id], play: false }),
+          })
+          setIsReady(true)
+        })
+
+        player.addListener('not_ready', () => setIsReady(false))
+
+        player.addListener('initialization_error', (data) => {
+          setError(`Init error: ${(data as { message: string }).message}`)
+        })
+        player.addListener('authentication_error', (data) => {
+          setError(`Auth error: ${(data as { message: string }).message}`)
+        })
+        player.addListener('account_error', (data) => {
+          setError(`Account error: ${(data as { message: string }).message} — Spotify Premium required`)
+        })
+
+        player.connect()
+        playerRef.current = player
+      }
+
+      if (window.Spotify) {
+        setup()
+      } else if (!document.getElementById('spotify-sdk')) {
+        window.onSpotifyWebPlaybackSDKReady = setup
+        const script = document.createElement('script')
+        script.id = 'spotify-sdk'
+        script.src = 'https://sdk.scdn.co/spotify-player.js'
+        script.async = true
+        document.body.appendChild(script)
+      } else {
+        window.onSpotifyWebPlaybackSDKReady = setup
+      }
+
+      return () => {
+        playerRef.current?.disconnect()
+      }
     }
   }, [accessToken])
 
@@ -159,5 +216,5 @@ export function useSpotifyPlayer({
     if (replaySignal > 0 && isReady) play()
   }, [replaySignal, isReady, play])
 
-  return { play, isPlaying, isReady, error }
+  return { play, isPlaying, isReady, error, isMobileDevice: mobileRef.current }
 }
