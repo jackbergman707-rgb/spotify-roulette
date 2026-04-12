@@ -2,11 +2,18 @@
 
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function Home() {
   const { data: session, status } = useSession()
   const router = useRouter()
+
+  // Redirect to onboarding if first visit
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !localStorage.getItem('onboarded')) {
+      router.replace('/onboarding')
+    }
+  }, [router])
   const [displayName, setDisplayName] = useState('')
   const [rounds, setRounds] = useState(7)
   const [creating, setCreating] = useState(false)

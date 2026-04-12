@@ -28,6 +28,7 @@ export default function LobbyPage({ params }: { params: Promise<{ code: string }
   const [confirmingPlaylist, setConfirmingPlaylist] = useState(false)
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
+  const [codeCopied, setCodeCopied] = useState(false)
 
   const isHost = room?.host_id === session?.spotifyId
   const myPlayer = players.find((p) => p.spotify_id === session?.spotifyId)
@@ -119,9 +120,19 @@ export default function LobbyPage({ params }: { params: Promise<{ code: string }
       {/* Room code header */}
       <div className="pt-16 pb-8 px-8 text-center">
         <p className="text-gray-500 text-xs font-black uppercase tracking-[0.2em] mb-2">Room Code</p>
-        <h2 className="text-white text-5xl font-black tracking-[0.2em] uppercase glow-text">{code}</h2>
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(code).then(() => {
+              setCodeCopied(true)
+              setTimeout(() => setCodeCopied(false), 2000)
+            })
+          }}
+          className="active:scale-95 transition-transform"
+        >
+          <h2 className="text-white text-5xl font-black tracking-[0.2em] uppercase glow-text">{code}</h2>
+        </button>
         <p className="text-spotify text-[10px] font-bold uppercase tracking-widest mt-3">
-          Share this code with your crew
+          {codeCopied ? 'Copied to clipboard!' : 'Tap code to copy \u00B7 share with the crew'}
         </p>
       </div>
 
