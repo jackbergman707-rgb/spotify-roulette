@@ -24,8 +24,6 @@ export function GuessForm({
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  if (isFinale) return null // Finale has no guessing
-
   const canSubmit =
     !disabled && !submitting && selectedOwner !== null && selectedTrack !== null
 
