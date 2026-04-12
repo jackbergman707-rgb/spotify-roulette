@@ -181,26 +181,20 @@ export default function GamePage({ params }: { params: Promise<{ code: string }>
               />
             )}
 
-            {isPlaying_ && !fullState.myGuess && myPlayerId && !fullState.currentRound?.is_finale && (
+            {isPlaying_ && !fullState.myGuess && myPlayerId && (
               <GuessForm
                 players={fullState.players}
                 songOptions={songOptions}
                 myPlayerId={myPlayerId}
-                isFinale={false}
+                isFinale={fullState.currentRound?.is_finale ?? false}
                 onLockIn={handleLockIn}
                 disabled={!!fullState.myGuess}
               />
             )}
 
-            {isPlaying_ && fullState.myGuess && !fullState.currentRound?.is_finale && (
+            {isPlaying_ && fullState.myGuess && (
               <p className="text-center text-white/40 text-sm py-4">
                 Locked in. Waiting for others…
-              </p>
-            )}
-
-            {fullState.currentRound?.is_finale && isPlaying_ && (
-              <p className="text-center text-white/40 text-sm py-4">
-                Final round — just listen.
               </p>
             )}
           </>

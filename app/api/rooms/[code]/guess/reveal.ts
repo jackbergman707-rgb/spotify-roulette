@@ -17,32 +17,30 @@ export default async function revealRound(
     is_finale: boolean
   },
 ) {
-  // Award points first
-  if (!round.is_finale) {
-    const { data: guesses } = await db
-      .from('sr_guesses')
-      .select()
-      .eq('round_id', round.id)
+  // Award points
+  const { data: guesses } = await db
+    .from('sr_guesses')
+    .select()
+    .eq('round_id', round.id)
 
-    if (guesses) {
-      await Promise.all(
-        guesses
-          .filter((g) => !g.is_force_locked)
-          .map(async (guess) => {
-            const { total } = calculatePoints(guess, {
-              owner_id: round.owner_id,
-              track_id: round.track_id,
-              id: round.id,
-            } as Parameters<typeof calculatePoints>[1])
-            if (total > 0) {
-              await db.rpc('increment_score', {
-                p_player_id: guess.player_id,
-                p_amount: total,
-              })
-            }
-          }),
-      )
-    }
+  if (guesses) {
+    await Promise.all(
+      guesses
+        .filter((g) => !g.is_force_locked)
+        .map(async (guess) => {
+          const { total } = calculatePoints(guess, {
+            owner_id: round.owner_id,
+            track_id: round.track_id,
+            id: round.id,
+          } as Parameters<typeof calculatePoints>[1])
+          if (total > 0) {
+            await db.rpc('increment_score', {
+              p_player_id: guess.player_id,
+              p_amount: total,
+            })
+          }
+        }),
+    )
   }
 
   // Set to 'revealing' — host must click "Next round" to advance
