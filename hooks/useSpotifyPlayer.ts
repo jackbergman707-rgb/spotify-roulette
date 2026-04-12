@@ -124,13 +124,22 @@ export function useSpotifyPlayer({
           const data = await res.json()
           const devices = data.devices as { id: string; is_active: boolean; type: string; name: string }[]
 
-          // Prefer active device, then any smartphone, then any device
-          const active = devices.find((d) => d.is_active)
+          // On mobile: ONLY use a smartphone device so audio plays from the phone
           const phone = devices.find((d) => d.type === 'Smartphone')
-          const device = active ?? phone ?? devices[0]
 
-          if (device && !cancelled) {
-            deviceIdRef.current = device.id
+          if (phone && !cancelled) {
+            deviceIdRef.current = phone.id
+
+            // Transfer playback to the phone so it becomes the active device
+            await fetch('https://api.spotify.com/v1/me/player', {
+              method: 'PUT',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ device_ids: [phone.id], play: false }),
+            })
+
             setIsReady(true)
             setError(null)
             if (pollInterval) clearInterval(pollInterval)
