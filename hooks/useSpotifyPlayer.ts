@@ -48,7 +48,11 @@ export function useSpotifyPlayer({
   const [error, setError] = useState<string | null>(null)
 
   const play = useCallback(async () => {
-    if (!accessToken || !spotifyTrackId || !deviceIdRef.current) return
+    console.log('[SpotifyPlayer] play() called', { accessToken: !!accessToken, spotifyTrackId, deviceId: deviceIdRef.current })
+    if (!accessToken || !spotifyTrackId || !deviceIdRef.current) {
+      console.warn('[SpotifyPlayer] play() aborted — missing:', { accessToken: !!accessToken, spotifyTrackId, deviceId: deviceIdRef.current })
+      return
+    }
 
     if (stopTimerRef.current) clearTimeout(stopTimerRef.current)
 
@@ -67,8 +71,10 @@ export function useSpotifyPlayer({
           }),
         },
       )
+      console.log('[SpotifyPlayer] play response:', res.status)
       if (!res.ok && res.status !== 204) {
         const err = await res.json()
+        console.error('[SpotifyPlayer] play error:', err)
         setError(err?.error?.message ?? 'Playback failed')
         return
       }
@@ -96,6 +102,7 @@ export function useSpotifyPlayer({
 
       player.addListener('ready', async (data) => {
         const { device_id } = data as { device_id: string }
+        console.log('[SpotifyPlayer] device ready:', device_id)
         deviceIdRef.current = device_id
         // Transfer playback to this device so commands aren't restricted
         await fetch('https://api.spotify.com/v1/me/player', {
