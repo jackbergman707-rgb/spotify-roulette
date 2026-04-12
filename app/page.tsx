@@ -85,6 +85,19 @@ export default function Home() {
         </p>
       </div>
 
+      {/* How to Play */}
+      <div className="px-8 mb-6">
+        <div className="bg-card-alt border border-white/5 rounded-2xl p-5">
+          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">How to Play</h2>
+          <ol className="text-sm text-gray-400 space-y-1.5 list-decimal list-inside">
+            <li>Everyone connects their Spotify.</li>
+            <li>A song plays from someone's library.</li>
+            <li>Guess whose music it is.</li>
+            <li>Best music detective wins!</li>
+          </ol>
+        </div>
+      </div>
+
       {!session ? (
         <div className="flex-1 flex flex-col justify-end px-8 pb-12">
           <button
