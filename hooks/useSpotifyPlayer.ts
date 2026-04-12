@@ -128,43 +128,37 @@ export function useSpotifyPlayer({
     if (stopTimerRef.current) clearTimeout(stopTimerRef.current)
 
     if (mobileRef.current) {
-      // Mobile: re-acquire the phone device every time we play
-      // This handles the case where the device went idle/asleep
       setError(null)
 
-      let deviceId = deviceIdRef.current
+      // Always re-acquire device to handle idle/sleep between rounds
+      let deviceId = await acquirePhoneDevice(accessToken)
 
-      // First attempt with cached device
-      if (deviceId) {
-        const result = await tryPlay(deviceId, spotifyTrackId, startOffsetMs, accessToken)
-        if (result.ok) {
-          setIsPlaying(true)
-          stopTimerRef.current = setTimeout(async () => {
-            await fetch(
-              `https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`,
-              { method: 'PUT', headers: { Authorization: `Bearer ${accessToken}` } },
-            ).catch(() => {})
-            setIsPlaying(false)
-          }, clipDurationMs)
-          return
-        }
+      if (!deviceId && deviceIdRef.current) {
+        // Re-acquire failed but we had a cached one — try cached as fallback
+        deviceId = deviceIdRef.current
       }
 
-      // Cached device failed or missing — re-discover and retry
-      deviceId = await acquirePhoneDevice(accessToken)
       if (!deviceId) {
+        // Only show connection card if we've never had a device
         setNeedsSpotifyOpen(true)
         return
       }
-      setNeedsSpotifyOpen(false)
+
       deviceIdRef.current = deviceId
+      setNeedsSpotifyOpen(false)
 
-      // Small delay to let the transfer settle
-      await new Promise((r) => setTimeout(r, 500))
+      // Try to play — retry once if first attempt fails
+      let result = await tryPlay(deviceId, spotifyTrackId, startOffsetMs, accessToken)
 
-      const result = await tryPlay(deviceId, spotifyTrackId, startOffsetMs, accessToken)
       if (!result.ok) {
-        setError(result.error ?? 'Playback failed — try again')
+        // Wait and retry once (device may need a moment after transfer)
+        await new Promise((r) => setTimeout(r, 800))
+        result = await tryPlay(deviceId, spotifyTrackId, startOffsetMs, accessToken)
+      }
+
+      if (!result.ok) {
+        // Show error with reconnect button, but don't show the full connection card
+        setError('Tap to retry — make sure Spotify is open')
         return
       }
 
