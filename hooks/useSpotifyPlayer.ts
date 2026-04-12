@@ -119,6 +119,8 @@ export function useSpotifyPlayer({
   const [isReady, setIsReady] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [needsSpotifyOpen, setNeedsSpotifyOpen] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
 
   const play = useCallback(async () => {
     if (!accessToken || !spotifyTrackId) return
@@ -151,9 +153,10 @@ export function useSpotifyPlayer({
       // Cached device failed or missing — re-discover and retry
       deviceId = await acquirePhoneDevice(accessToken)
       if (!deviceId) {
-        setError('Open Spotify on your phone and try again')
+        setNeedsSpotifyOpen(true)
         return
       }
+      setNeedsSpotifyOpen(false)
       deviceIdRef.current = deviceId
 
       // Small delay to let the transfer settle
@@ -213,12 +216,11 @@ export function useSpotifyPlayer({
         if (deviceId) {
           deviceIdRef.current = deviceId
           setIsReady(true)
+          setNeedsSpotifyOpen(false)
           setError(null)
         } else {
-          // Still mark as "ready" so the button is tappable —
-          // play() will show the error if no device is found at play time
           setIsReady(true)
-          setError('Open Spotify on your phone')
+          setNeedsSpotifyOpen(true)
         }
       }
 
@@ -231,6 +233,7 @@ export function useSpotifyPlayer({
         if (cancelled) return
         if (deviceId) {
           deviceIdRef.current = deviceId
+          setNeedsSpotifyOpen(false)
           setError(null)
         }
       }, 10_000)
@@ -302,5 +305,20 @@ export function useSpotifyPlayer({
     if (replaySignal > 0 && isReady) play()
   }, [replaySignal, isReady, play])
 
-  return { play, isPlaying, isReady, error, isMobileDevice: mobileRef.current }
+  const retryConnection = useCallback(async () => {
+    if (!accessToken) return
+    setIsConnecting(true)
+    setError(null)
+    const deviceId = await acquirePhoneDevice(accessToken)
+    if (deviceId) {
+      deviceIdRef.current = deviceId
+      setNeedsSpotifyOpen(false)
+      setIsReady(true)
+    } else {
+      setNeedsSpotifyOpen(true)
+    }
+    setIsConnecting(false)
+  }, [accessToken])
+
+  return { play, isPlaying, isReady, error, isMobileDevice: mobileRef.current, needsSpotifyOpen, isConnecting, retryConnection }
 }
